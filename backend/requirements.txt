@@ -1,0 +1,13 @@
+# FastAPI Backend Dependencies
+fastapi
+uvicorn[standard]
+pydantic
+python-multipart
+
+# Machine Learning (Latest versions compatible with Python 3.13)
+torch
+transformers
+sentencepiece
+
+# Utilities
+python-dotenv
