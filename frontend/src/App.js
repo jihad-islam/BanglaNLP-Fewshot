@@ -99,92 +99,130 @@ function App() {
 
   const renderConfidenceBar = (confidence) => {
     const percentage = (confidence * 100).toFixed(1);
-    const color =
-      confidence > 0.7
-        ? "bg-blue-600"
-        : confidence > 0.5
-        ? "bg-indigo-500"
-        : "bg-slate-500";
+    const getColorClasses = () => {
+      if (confidence > 0.8)
+        return "bg-gradient-to-r from-green-500 to-emerald-600";
+      if (confidence > 0.6)
+        return "bg-gradient-to-r from-blue-500 to-indigo-600";
+      if (confidence > 0.4)
+        return "bg-gradient-to-r from-yellow-400 to-orange-500";
+      return "bg-gradient-to-r from-slate-400 to-slate-500";
+    };
 
     return (
-      <div className="mt-2">
-        <div className="flex justify-between text-sm mb-1">
-          <span className="text-slate-600">Confidence</span>
-          <span className="font-semibold text-slate-900">{percentage}%</span>
+      <div className="mt-3">
+        <div className="flex justify-between text-sm mb-2">
+          <span className="text-slate-600 font-medium">Confidence Score</span>
+          <span className="font-bold text-slate-900">{percentage}%</span>
         </div>
-        <div className="w-full bg-slate-200 rounded-full h-3">
-          <div
-            className={`${color} h-3 rounded-full transition-all duration-500`}
-            style={{ width: `${percentage}%` }}
-          ></div>
+        <div className="relative">
+          <div className="w-full bg-slate-200 rounded-full h-3.5 overflow-hidden shadow-inner">
+            <div
+              className={`${getColorClasses()} h-3.5 rounded-full transition-all duration-700 ease-out relative shadow-sm`}
+              style={{ width: `${percentage}%` }}
+            >
+              <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+            </div>
+          </div>
         </div>
       </div>
     );
   };
 
   const renderProbabilities = (probabilities) => {
+    const sortedProbs = Object.entries(probabilities).sort(
+      (a, b) => b[1] - a[1]
+    );
+
     return (
-      <div className="mt-3 space-y-2">
-        <p className="text-sm font-medium text-slate-700">
-          Class Probabilities:
-        </p>
-        {Object.entries(probabilities).map(([label, prob]) => (
-          <div
-            key={label}
-            className="flex items-center justify-between text-sm"
+      <div className="mt-4 space-y-3">
+        <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <svg
+            className="w-4 h-4 text-slate-500"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
           >
-            <span className="text-slate-600">{label}</span>
-            <span className="font-mono text-slate-900">
-              {(prob * 100).toFixed(1)}%
-            </span>
-          </div>
-        ))}
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+            />
+          </svg>
+          Class Probabilities
+        </p>
+        <div className="space-y-2">
+          {sortedProbs.map(([label, prob], idx) => (
+            <div key={label} className="space-y-1">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium text-slate-700">{label}</span>
+                <span className="font-bold text-slate-900">
+                  {(prob * 100).toFixed(1)}%
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all duration-500 ${
+                    idx === 0
+                      ? "bg-gradient-to-r from-blue-500 to-indigo-500"
+                      : "bg-slate-300"
+                  }`}
+                  style={{ width: `${prob * 100}%` }}
+                ></div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   };
 
-  const renderModelCard = (modelData, title, isWinner = false) => {
+  const renderModelCard = (modelData, title) => {
     if (!modelData) return null;
 
     return (
-      <div
-        className={`bg-white rounded-lg shadow-lg p-6 border-2 transition-all ${
-          isWinner
-            ? "border-green-500 ring-2 ring-green-200 shadow-green-100"
-            : "border-slate-200"
-        }`}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-slate-900">{title}</h3>
-          {isWinner && (
-            <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full flex items-center gap-1">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              Winner - Higher Confidence
-            </span>
-          )}
-        </div>
+      <div className="relative bg-white rounded-xl shadow-xl p-0.5 transition-all duration-300 hover:shadow-2xl group">
+        {/* Gradient border effect */}
+        <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 via-purple-500 to-indigo-500 rounded-xl opacity-60 group-hover:opacity-75 transition-opacity blur-[2px]"></div>
 
-        <div className="space-y-4">
-          <div>
-            <p className="text-sm text-slate-600 mb-1">Predicted Label</p>
-            <p className="text-2xl font-bold text-blue-600">
-              {modelData.predicted_label}
-            </p>
+        {/* Card content */}
+        <div className="relative bg-white rounded-xl p-6">
+          <div className="mb-4">
+            <h3 className="text-base font-bold text-slate-900">{title}</h3>
           </div>
 
-          {renderConfidenceBar(modelData.confidence)}
-          {renderProbabilities(modelData.probabilities)}
+          <div className="space-y-4">
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-lg border-2 border-blue-200">
+              <p className="text-xs text-slate-600 mb-1 font-semibold">
+                Predicted Label
+              </p>
+              <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                {modelData.predicted_label}
+              </p>
+            </div>
 
-          <div className="pt-3 border-t border-slate-200">
-            <span className="text-xs text-slate-500">
-              Model: {modelData.model_type}
-            </span>
+            {renderConfidenceBar(modelData.confidence)}
+            {renderProbabilities(modelData.probabilities)}
+
+            <div className="pt-3 border-t border-slate-200 flex items-center gap-2">
+              <svg
+                className="w-3.5 h-3.5 text-slate-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"
+                />
+              </svg>
+              <span className="text-xs text-slate-500 font-medium">
+                {modelData.model_type}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -200,33 +238,76 @@ function App() {
       result.protonet !== null && result.protonet !== undefined;
 
     if (mode === "comparison" && hasBaseline && hasProtonet) {
-      const baselineWins =
-        result.baseline.confidence > result.protonet.confidence;
-
       return (
-        <div className="mt-8 grid md:grid-cols-2 gap-6">
-          {renderModelCard(
-            result.baseline,
-            "BanglaBERT (Baseline)",
-            baselineWins
-          )}
-          {renderModelCard(
-            result.protonet,
-            "Meta Learning (ProtoNet)",
-            !baselineWins
-          )}
+        <div className="animate-fadeIn">
+          <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+            <svg
+              className="w-6 h-6 text-blue-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+              />
+            </svg>
+            Model Comparison
+          </h2>
+          <div className="grid lg:grid-cols-2 gap-6">
+            {renderModelCard(result.baseline, "BanglaBERT (Baseline)")}
+            {renderModelCard(result.protonet, "Meta Learning (ProtoNet)")}
+          </div>
         </div>
       );
     } else if (mode === "baseline" && hasBaseline) {
       return (
-        <div className="mt-8">
-          {renderModelCard(result.baseline, "BanglaBERT (Baseline)")}
+        <div className="animate-fadeIn">
+          <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+            <svg
+              className="w-6 h-6 text-blue-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+              />
+            </svg>
+            Analysis Results
+          </h2>
+          <div className="max-w-2xl mx-auto">
+            {renderModelCard(result.baseline, "BanglaBERT (Baseline)")}
+          </div>
         </div>
       );
     } else if (mode === "protonet" && hasProtonet) {
       return (
-        <div className="mt-8">
-          {renderModelCard(result.protonet, "Meta Learning (ProtoNet)")}
+        <div className="animate-fadeIn">
+          <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+            <svg
+              className="w-6 h-6 text-blue-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+              />
+            </svg>
+            Analysis Results
+          </h2>
+          <div className="max-w-2xl mx-auto">
+            {renderModelCard(result.protonet, "Meta Learning (ProtoNet)")}
+          </div>
         </div>
       );
     } else if (hasBaseline) {
@@ -249,10 +330,11 @@ function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       {/* Header */}
-      <header className="bg-gradient-to-r from-blue-600 to-indigo-700 shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center space-x-4">
-            <div className="bg-white/10 backdrop-blur-sm p-3 rounded-lg">
+      <header className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 shadow-xl relative overflow-hidden">
+        <div className="absolute inset-0 bg-black/5"></div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
+          <div className="flex flex-col sm:flex-row items-center gap-4">
+            <div className="bg-white/20 backdrop-blur-md p-3 rounded-xl shadow-lg ring-2 ring-white/30 transition-transform hover:scale-105">
               <svg
                 className="w-8 h-8 text-white"
                 fill="none"
@@ -267,12 +349,12 @@ function App() {
                 />
               </svg>
             </div>
-            <div>
-              <h1 className="text-3xl font-bold text-white">
+            <div className="text-center sm:text-left">
+              <h1 className="text-3xl font-bold text-white tracking-tight">
                 Bangla NLP Research Dashboard
               </h1>
               <p className="text-blue-100 text-sm mt-1">
-                Few-Shot & Meta-Learning System
+                Few-Shot & Meta-Learning System for Bangla Text Analysis
               </p>
             </div>
           </div>
@@ -282,17 +364,30 @@ function App() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Control Panel */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-          <div className="grid md:grid-cols-2 gap-6 mb-6">
+        <div className="bg-white rounded-xl shadow-xl p-8 mb-8 border border-slate-200/50">
+          <div className="grid sm:grid-cols-2 gap-6 mb-6">
             {/* Task Selection */}
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
+                <svg
+                  className="w-4 h-4 text-blue-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                  />
+                </svg>
                 Analysis Task
               </label>
               <select
                 value={selectedTask}
                 onChange={(e) => setSelectedTask(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                className="w-full px-4 py-3 bg-slate-50 border-[3px] border-slate-300 rounded-lg focus:ring-0 focus:border-blue-500 focus:bg-white transition-all hover:border-slate-400 cursor-pointer text-slate-700 font-medium shadow-sm"
               >
                 {Object.keys(tasks).map((task) => (
                   <option key={task} value={task}>
@@ -304,13 +399,26 @@ function App() {
 
             {/* Mode Selection */}
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
+                <svg
+                  className="w-4 h-4 text-blue-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"
+                  />
+                </svg>
                 Evaluation Mode
               </label>
               <select
                 value={mode}
                 onChange={(e) => setMode(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                className="w-full px-4 py-3 bg-slate-50 border-[3px] border-slate-300 rounded-lg focus:ring-0 focus:border-blue-500 focus:bg-white transition-all hover:border-slate-400 cursor-pointer text-slate-700 font-medium shadow-sm"
               >
                 {availableModels.baseline && (
                   <option value="baseline">BanglaBERT (Baseline)</option>
@@ -328,46 +436,66 @@ function App() {
           {/* Text Input */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-semibold text-slate-700">
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <svg
+                  className="w-4 h-4 text-blue-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                  />
+                </svg>
                 Bangla Text Input
               </label>
-              {inputText && (
-                <button
-                  onClick={handleClear}
-                  className="text-sm text-slate-600 hover:text-red-600 transition flex items-center gap-1 px-3 py-1 rounded hover:bg-red-50"
-                >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+              <div className="flex items-center gap-2">
+                {inputText && (
+                  <span className="text-xs text-slate-500 font-medium">
+                    {inputText.length} chars
+                  </span>
+                )}
+                {inputText && (
+                  <button
+                    onClick={handleClear}
+                    className="text-sm text-slate-600 hover:text-red-600 transition-all flex items-center gap-1 px-2.5 py-1 rounded-lg hover:bg-red-50 font-medium"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                  Clear
-                </button>
-              )}
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
             <textarea
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder="বাংলা টেক্সট লিখুন... (Enter Bangla text here)"
-              className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition resize-none"
-              rows="4"
+              placeholder="বাংলা টেক্সট লিখুন... (Enter Bangla text here for analysis)"
+              className="w-full px-4 py-3 bg-slate-50 border-[3px] border-slate-300 rounded-lg focus:ring-0 focus:border-blue-500 focus:bg-white transition-all resize-none hover:border-slate-400 shadow-sm text-slate-700 text-base"
+              rows="5"
             />
           </div>
 
           {/* Action Buttons */}
-          <div className="grid grid-cols-1 gap-3">
+          <div>
             <button
               onClick={handleAnalyze}
-              disabled={loading}
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+              disabled={loading || !inputText.trim()}
+              className="w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 text-white font-bold py-4 px-6 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
             >
               {loading ? (
                 <>
@@ -416,10 +544,10 @@ function App() {
 
           {/* Error Display */}
           {error && (
-            <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-8 rounded-lg">
-              <div className="flex">
+            <div className="mt-4 bg-red-50 border-l-4 border-red-500 p-3 rounded-lg shadow-sm animate-shake">
+              <div className="flex items-start gap-3">
                 <svg
-                  className="h-5 w-5 text-red-400"
+                  className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5"
                   fill="currentColor"
                   viewBox="0 0 20 20"
                 >
@@ -429,7 +557,12 @@ function App() {
                     clipRule="evenodd"
                   />
                 </svg>
-                <p className="ml-3 text-sm text-red-700">{error}</p>
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-red-800 mb-0.5">
+                    Error
+                  </h3>
+                  <p className="text-sm text-red-700">{error}</p>
+                </div>
               </div>
             </div>
           )}
@@ -440,8 +573,13 @@ function App() {
       </main>
 
       {/* Footer */}
-      <footer className="mt-12 py-6 text-center text-slate-600 text-sm">
-        <p>Bangla NLP Research Dashboard • Few-Shot & Meta-Learning System</p>
+      <footer className="mt-12 py-6 text-center border-t border-slate-200 bg-white/50 backdrop-blur-sm">
+        <p className="text-slate-600 text-sm font-medium">
+          Bangla NLP Research Dashboard • Few-Shot & Meta-Learning System
+        </p>
+        <p className="text-slate-400 text-xs mt-2">
+          Powered by BanglaBERT & Prototypical Networks
+        </p>
       </footer>
     </div>
   );
