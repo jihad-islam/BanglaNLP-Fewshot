@@ -1,6 +1,8 @@
 """
-Dynamic Model Loader for Bangla NLP System
-Automatically scans and loads both Baseline (HuggingFace) and ProtoNet models
+Smart Model Loader for Bangla NLP System
+Hybrid Logic:
+1. Checks local 'sources/models' first (For Local Dev)
+2. Downloads from Hugging Face if local files missing (For Render Deployment)
 """
 import os
 import torch
@@ -9,10 +11,14 @@ from pathlib import Path
 from typing import Dict, Any, List
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoModel
 import logging
+from huggingface_hub import hf_hub_download, snapshot_download
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# --- CONFIGURATION ---
+HF_REPO_ID = "Jihad07/bangla-nlp-models" # Your Hugging Face Repo
+# ---------------------
 
 class ProtoNet(nn.Module):
     """ProtoNet architecture for meta-learning models"""
@@ -30,16 +36,7 @@ class ProtoNet(nn.Module):
 
 
 class ModelRegistry:
-    """Registry to manage all loaded models"""
-    
-    def __init__(self, models_dir: str = None):
-        # Auto-detect models directory relative to project root
-        if models_dir is None:
-            # Get the project root (parent of backend directory)
-            backend_dir = Path(__file__).parent
-            project_root = backend_dir.parent
-            models_dir = project_root / "sources" / "models"
-        self.models_dir = Path(models_dir)
+    def __init__(self):
         self.models: Dict[str, Dict[str, Any]] = {}
         self.task_labels = {
             "sentiment": ["Negative", "Neutral", "Positive"],
@@ -47,142 +44,164 @@ class ModelRegistry:
             "topic": ["Politics", "Sports", "Entertainment", "Economy"]
         }
         
-    def _extract_task_name(self, folder_name: str) -> str:
-        """Extract task name from folder name"""
-        folder_lower = folder_name.lower()
-        if "sentiment" in folder_lower:
-            return "sentiment"
-        elif "hate" in folder_lower:
-            return "hate"
-        elif "topic" in folder_lower:
-            return "topic"
-        return None
-    
-    def _load_baseline_model(self, model_path: Path, task: str):
-        """Load HuggingFace baseline model"""
-        try:
-            tokenizer = AutoTokenizer.from_pretrained(str(model_path))
-            model = AutoModelForSequenceClassification.from_pretrained(str(model_path))
-            model.eval()
-            
-            logger.info(f"✓ Loaded Baseline model for {task} from {model_path}")
-            return {
-                "model": model,
-                "tokenizer": tokenizer,
-                "type": "baseline",
-                "task": task,
-                "path": str(model_path)
+        # Define paths
+        self.backend_dir = Path(__file__).parent
+        self.project_root = self.backend_dir.parent
+        self.local_models_dir = self.project_root / "sources" / "models"
+
+    def _get_model_path(self, task: str, model_type: str, resource_name: str) -> str:
+        """
+        Smart Path Finder:
+        Returns local path if it exists, otherwise downloads from Hugging Face.
+        """
+        # 1. Try Local Path
+        if model_type == "baseline":
+            # Map task to local folder names based on your structure
+            # Adjust these if your local folder names are different!
+            folder_map = {
+                "sentiment": "BanglaBERT Sentiment Analysis",
+                "hate": "BanglaBERT Hate Speech Detection",
+                "topic": "BanglaBERT Topic Classification"
             }
-        except Exception as e:
-            logger.error(f"✗ Failed to load baseline model from {model_path}: {e}")
-            return None
-    
-    def _load_protonet_model(self, model_path: Path, task: str):
-        """Load PyTorch ProtoNet model from legacy format"""
-        try:
-            # Get number of labels for this task
-            num_labels = len(self.task_labels.get(task, []))
+            local_path = self.local_models_dir / "BanglaBert" / folder_map.get(task, "")
             
-            # Initialize ProtoNet
+            if local_path.exists() and (local_path / "config.json").exists():
+                logger.info(f"📂 Found local model for {task} ({model_type})")
+                return str(local_path)
+
+        elif model_type == "protonet":
+            # First try .pth files (if converted)
+            file_map = {
+                "sentiment": "sentiment_proto.pth", 
+                "hate": "hate_proto.pth",
+                "topic": "topic_proto.pth"
+            }
+            pth_path = self.local_models_dir / "MetaLearning" / file_map.get(task, "")
+            
+            if pth_path.exists():
+                logger.info(f"📂 Found local .pth model for {task} ({model_type})")
+                return str(pth_path)
+            
+            # Fallback to legacy directory format
+            legacy_folder_map = {
+                "sentiment": "Meta Learning Sentiment Analysis",
+                "hate": "Meta Learning Hate Speech Detection",
+                "topic": "Meta Learning Topic Classification"
+            }
+            legacy_path = self.local_models_dir / "MetaLearning" / legacy_folder_map.get(task, "")
+            
+            # Look for model folders inside (e.g., model_10shot, protonet_model_10shot)
+            if legacy_path.exists():
+                for model_folder in legacy_path.iterdir():
+                    if model_folder.is_dir() and "model" in model_folder.name.lower():
+                        data_pkl = model_folder / "data.pkl"
+                        if data_pkl.exists():
+                            logger.info(f"📂 Found local legacy model for {task} ({model_type})")
+                            return str(model_folder)
+
+        # 2. Fallback to Hugging Face
+        logger.info(f"☁️ Local model missing for {task}. Downloading from Hugging Face...")
+        try:
+            if model_type == "baseline":
+                # Matches the folder name you uploaded to HF
+                return snapshot_download(repo_id=HF_REPO_ID, allow_patterns=f"{resource_name}/*")
+            else:
+                # Matches the filename you uploaded to HF
+                return hf_hub_download(repo_id=HF_REPO_ID, filename=resource_name)
+        except Exception as e:
+            logger.error(f"Failed to download from HF: {e}")
+            return None
+
+    def _load_baseline_model(self, task: str, hf_folder_name: str):
+        path = self._get_model_path(task, "baseline", hf_folder_name)
+        if not path: return None
+
+        # If downloaded from HF snapshot, the path might be the parent dir, need to append folder name
+        # If local, path is already correct
+        if "snapshots" in str(path) and not str(path).endswith(hf_folder_name):
+             full_path = Path(path) / hf_folder_name
+        else:
+             full_path = Path(path)
+
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(str(full_path))
+            model = AutoModelForSequenceClassification.from_pretrained(str(full_path))
+            model.eval()
+            return {"model": model, "tokenizer": tokenizer, "type": "baseline", "task": task}
+        except Exception as e:
+            logger.error(f"Error loading baseline {task}: {e}")
+            return None
+
+    def _load_protonet_model(self, task: str, hf_filename: str):
+        path = self._get_model_path(task, "protonet", hf_filename)
+        if not path: return None
+
+        try:
+            num_labels = len(self.task_labels.get(task, []))
             protonet = ProtoNet(num_labels=num_labels)
             
-            # Load state dict from PyTorch legacy save format (directory-based)
-            # This format requires custom unpickling to load storage references
-            import pickle
-            
-            data_pkl_path = model_path / 'data.pkl'
-            if not data_pkl_path.exists():
-                raise FileNotFoundError(f"data.pkl not found in {model_path}")
-            
-            class StorageContext:
-                """Custom unpickler context for legacy PyTorch format"""
-                def __init__(self, data_dir):
-                    self.data_dir = data_dir
-                    
-                def persistent_load(self, pid):
-                    """Load persistent storage references from data/ directory"""
-                    if pid[0] == 'storage':
-                        storage_type, key, location, size = pid[1:]
-                        tensor_file = self.data_dir / 'data' / str(key)
-                        if tensor_file.exists():
-                            storage = torch.FloatStorage.from_file(str(tensor_file), False, size)
-                            return storage
-                    return None
-            
-            # Load state dict with custom unpickler
-            ctx = StorageContext(model_path)
-            with open(data_pkl_path, 'rb') as f:
-                unpickler = pickle.Unpickler(f)
-                unpickler.persistent_load = ctx.persistent_load
-                state_dict = unpickler.load()
+            # Check if it's a direct .pth file (from HF) or directory (local legacy format)
+            path_obj = Path(path)
+            if path_obj.is_file() and path_obj.suffix == '.pth':
+                # Direct .pth file from HuggingFace
+                state_dict = torch.load(path, map_location=torch.device('cpu'))
+            elif path_obj.is_dir():
+                # Legacy directory format (local), need to load from data.pkl
+                import pickle
+                data_pkl = path_obj / 'data.pkl'
+                if not data_pkl.exists():
+                    raise FileNotFoundError(f"data.pkl not found in {path_obj}")
+                
+                class StorageContext:
+                    def __init__(self, data_dir):
+                        self.data_dir = data_dir
+                    def persistent_load(self, pid):
+                        if pid[0] == 'storage':
+                            storage_type, key, location, size = pid[1:]
+                            tensor_file = self.data_dir / 'data' / str(key)
+                            if tensor_file.exists():
+                                storage = torch.FloatStorage.from_file(str(tensor_file), False, size)
+                                return storage
+                        return None
+                
+                ctx = StorageContext(path_obj)
+                with open(data_pkl, 'rb') as f:
+                    unpickler = pickle.Unpickler(f)
+                    unpickler.persistent_load = ctx.persistent_load
+                    state_dict = unpickler.load()
+            else:
+                raise ValueError(f"Invalid model path: {path}")
             
             protonet.load_state_dict(state_dict)
             protonet.eval()
             
-            # Load tokenizer (using base BanglaBERT tokenizer)
             tokenizer = AutoTokenizer.from_pretrained("csebuetnlp/banglabert")
-            
-            logger.info(f"✓ Loaded ProtoNet model for {task} from {model_path}")
-            return {
-                "model": protonet,
-                "tokenizer": tokenizer,
-                "type": "protonet",
-                "task": task,
-                "path": str(model_path),
-                "num_labels": num_labels
-            }
+            return {"model": protonet, "tokenizer": tokenizer, "type": "protonet", "task": task, "num_labels": num_labels}
         except Exception as e:
-            logger.error(f"✗ Failed to load ProtoNet model from {model_path}: {e}")
+            logger.error(f"Error loading ProtoNet {task}: {e}")
             import traceback
             logger.error(traceback.format_exc())
             return None
-    
+
     def scan_and_load(self):
-        """Scan models directory and load all models"""
-        if not self.models_dir.exists():
-            logger.error(f"Models directory not found: {self.models_dir}")
-            return
+        logger.info("Initializing models...")
         
-        logger.info(f"Scanning models directory: {self.models_dir}")
+        # Load Baselines (Using HF folder names as keys)
+        self.models["sentiment_baseline"] = self._load_baseline_model("sentiment", "sentiment_baseline")
+        self.models["topic_baseline"] = self._load_baseline_model("topic", "topic_baseline")
+        self.models["hate_baseline"] = self._load_baseline_model("hate", "hate_baseline")
         
-        # Scan BanglaBert folder for baseline models
-        banglabert_dir = self.models_dir / "BanglaBert"
-        if banglabert_dir.exists():
-            for model_folder in banglabert_dir.iterdir():
-                if model_folder.is_dir():
-                    config_path = model_folder / "config.json"
-                    if config_path.exists():
-                        task = self._extract_task_name(model_folder.name)
-                        if task:
-                            model_data = self._load_baseline_model(model_folder, task)
-                            if model_data:
-                                key = f"{task}_baseline"
-                                self.models[key] = model_data
+        # Load ProtoNets (Using HF filenames as keys)
+        self.models["sentiment_protonet"] = self._load_protonet_model("sentiment", "sentiment_proto.pth")
+        self.models["topic_protonet"] = self._load_protonet_model("topic", "topic_proto.pth")
+        self.models["hate_protonet"] = self._load_protonet_model("hate", "hate_proto.pth")
         
-        # Scan MetaLearning folder for ProtoNet models
-        metalearning_dir = self.models_dir / "MetaLearning"
-        if metalearning_dir.exists():
-            for task_folder in metalearning_dir.iterdir():
-                if task_folder.is_dir():
-                    task = self._extract_task_name(task_folder.name)
-                    if task:
-                        # Look for model folders (e.g., model_10shot, protonet_model_10shot)
-                        for model_folder in task_folder.iterdir():
-                            if model_folder.is_dir() and ("model" in model_folder.name.lower()):
-                                # This is a PyTorch save directory
-                                model_data = self._load_protonet_model(model_folder, task)
-                                if model_data:
-                                    key = f"{task}_protonet"
-                                    self.models[key] = model_data
-                                    break  # Only load first model found
-        
+        # Cleanup failed loads
+        self.models = {k: v for k, v in self.models.items() if v is not None}
         logger.info(f"Total models loaded: {len(self.models)}")
-        logger.info(f"Available models: {list(self.models.keys())}")
-    
+
     def get_model(self, task: str, model_type: str = "baseline"):
-        """Get a specific model by task and type"""
-        key = f"{task}_{model_type}"
-        return self.models.get(key)
+        return self.models.get(f"{task}_{model_type}")
     
     def get_available_tasks(self) -> List[str]:
         """Get list of available tasks"""
@@ -193,15 +212,10 @@ class ModelRegistry:
         return sorted(list(tasks))
     
     def get_labels(self, task: str) -> List[str]:
-        """Get label names for a task"""
         return self.task_labels.get(task, [])
 
-
-# Global registry instance
 model_registry = ModelRegistry()
 
-
 def initialize_models():
-    """Initialize all models at startup"""
     model_registry.scan_and_load()
     return model_registry

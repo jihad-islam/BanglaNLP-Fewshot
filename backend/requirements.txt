@@ -8,6 +8,7 @@ python-multipart
 torch
 transformers
 sentencepiece
+huggingface_hub
 
 # Utilities
 python-dotenv
