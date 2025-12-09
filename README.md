@@ -1,6 +1,6 @@
 # Bangla NLP Few-Shot Learning System
 
-A web-based platform for Bangla text analysis using transformer models and meta-learning approaches.
+Web-based platform for Bangla text analysis using transformer models and meta-learning.
 
 ![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)
@@ -10,22 +10,34 @@ A web-based platform for Bangla text analysis using transformer models and meta-
 
 ## Features
 
-### Supported Tasks
+- **Sentiment Analysis** - Classify text as Positive, Neutral, or Negative
+- **Hate Speech Detection** - Identify hateful or offensive content
+- **Topic Classification** - Categorize text into Politics, Sports, Entertainment, or Economy
+- **Dual Models** - Compare BanglaBERT (baseline) vs ProtoNet (meta-learning)
+- **Interactive UI** - Real-time predictions with confidence scores
+- **REST API** - Complete API documentation with Swagger UI
 
-- **Sentiment Analysis** - Positive, Neutral, Negative
-- **Hate Speech Detection** - Hate, Non-Hate
-- **Topic Classification** - Politics, Sports, Entertainment, Economy
+---
 
-### Model Architecture
+## Technology Stack
 
-- **BanglaBERT (Baseline)** - Fine-tuned transformer model
-- **ProtoNet (Meta-Learning)** - 10-shot learning with prototypical networks
+**Backend**
 
-### Interface
+- FastAPI - Modern Python web framework
+- PyTorch - Deep learning
+- Transformers - HuggingFace pre-trained models
+- Uvicorn - ASGI server
 
-- Interactive web UI with real-time predictions
-- RESTful API with automatic documentation
-- Side-by-side model comparison
+**Frontend**
+
+- React 18 - UI framework
+- Axios - HTTP client
+- Tailwind CSS - Styling
+
+**Models**
+
+- BanglaBERT - Fine-tuned transformer (csebuetnlp/banglabert)
+- ProtoNet - 10-shot prototypical networks
 
 ---
 
@@ -35,87 +47,78 @@ A web-based platform for Bangla text analysis using transformer models and meta-
 
 - Python 3.8+
 - Node.js 16+
-- 4GB RAM minimum (8GB recommended)
-- 5GB free disk space
+- 4GB RAM (8GB recommended)
+- 5GB disk space
 
 ### Installation
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/bangla-nlp-few-shot.git
-cd bangla-nlp-few-shot
+git clone https://github.com/jihad-islam/BanglaNLP-Fewshot.git
+cd BanglaNLP-Fewshot
 
-# Download models from Hugging Face (required)
+# Download models from Hugging Face
 pip install huggingface_hub
 huggingface-cli download Jihad07/bangla-nlp-models --repo-type=model --local-dir sources/models
 
-# Install dependencies
-./setup-only.sh
+# Install backend dependencies
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+# Install frontend dependencies
+cd ../frontend
+npm install
 ```
 
-**Note:** Models are hosted on Hugging Face due to size constraints. Visit: https://huggingface.co/Jihad07/bangla-nlp-models
+For detailed setup instructions, see [SETUP.md](SETUP.md).
 
-### Running the Application
+---
+
+## Running the Application
+
+### Start Backend (Terminal 1)
 
 ```bash
-# Terminal 1 - Start backend
-./start-backend.sh
-
-# Terminal 2 - Start frontend
-./start-frontend.sh
+cd backend
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+python main.py
 ```
 
-### Stopping the Application
+Backend runs at: http://localhost:8000
+
+### Start Frontend (Terminal 2)
 
 ```bash
-./stop-backend.sh
-./stop-frontend.sh
+cd frontend
+npm start
 ```
 
-Or press `Ctrl+C` in each terminal.
+Frontend opens at: http://localhost:3000
 
 ---
 
-## Access URLs
+## Usage
 
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:8000
-- **API Documentation**: http://localhost:8000/docs
-- **Health Check**: http://localhost:8000/health
+### Web Interface
 
----
+1. Open http://localhost:3000
+2. Select task: Sentiment, Hate Speech, or Topic
+3. Choose model: Baseline (BanglaBERT) or Meta-Learning (ProtoNet)
+4. Enter Bangla text
+5. Click "Analyze Text"
+6. View predictions with confidence scores
 
-## Project Structure
+### API
 
-```
-bangla-nlp-few-shot/
-├── backend/              # FastAPI backend
-│   ├── main.py          # API endpoints
-│   ├── model_loader.py  # Model loading logic
-│   └── requirements.txt # Python dependencies
-├── frontend/            # React frontend
-│   ├── src/
-│   │   ├── App.js      # Main component
-│   │   └── index.js    # Entry point
-│   └── package.json    # Node dependencies
-├── sources/
-│   └── models/         # Pre-trained models
-│       ├── BanglaBert/ # Baseline models
-│       └── MetaLearning/ # ProtoNet models
-├── setup-only.sh       # Install dependencies
-├── start-backend.sh    # Start backend
-├── start-frontend.sh   # Start frontend
-├── stop-backend.sh     # Stop backend
-├── stop-frontend.sh    # Stop frontend
-├── README.md           # This file
-└── SETUP.md            # Detailed setup guide
+**Health Check:**
+
+```bash
+curl http://localhost:8000/health
 ```
 
----
-
-## API Usage
-
-### Sentiment Analysis
+**Sentiment Analysis:**
 
 ```bash
 curl -X POST http://localhost:8000/predict \
@@ -128,87 +131,56 @@ curl -X POST http://localhost:8000/predict \
   }'
 ```
 
-### Model Comparison
+**API Documentation:** http://localhost:8000/docs
 
-```bash
-curl -X POST http://localhost:8000/predict \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task": "hate",
-    "text": "আমরা একসাথে কাজ করি",
-    "mode": "comparison"
-  }'
+---
+
+## Project Structure
+
+```
+BanglaNLP-Fewshot/
+├── backend/
+│   ├── main.py              # API endpoints
+│   ├── model_loader.py      # Model management
+│   └── requirements.txt     # Python dependencies
+├── frontend/
+│   ├── src/
+│   │   ├── App.js          # Main React component
+│   │   └── index.js        # Entry point
+│   ├── public/
+│   └── package.json        # Node dependencies
+├── sources/
+│   ├── models/             # Pre-trained models (download separately)
+│   └── code.txt            # Training scripts
+├── README.md               # This file
+└── SETUP.md                # Detailed setup guide
 ```
 
 ---
 
-## Technology Stack
+## Models
 
-### Backend
+Pre-trained models (~1.5GB) are hosted on Hugging Face:
 
-- FastAPI - Modern Python web framework
-- PyTorch - Deep learning framework
-- Transformers (HuggingFace) - Pre-trained models
-- Uvicorn - ASGI server
+**Download:** https://huggingface.co/Jihad07/bangla-nlp-models
 
-### Frontend
-
-- React 18 - UI framework
-- Axios - HTTP client
-- Tailwind CSS - Styling
-
-### Models
-
-- BanglaBERT - csebuetnlp/banglabert
-- ProtoNet - Prototypical Networks for few-shot learning
+Models are not included in the repository due to size constraints.
 
 ---
 
-## Development
+## API Endpoints
 
-### Backend Only
-
-```bash
-cd backend
-source venv/bin/activate
-python main.py
-```
-
-### Frontend Only
-
-```bash
-cd frontend
-npm start
-```
+| Endpoint   | Method | Description     |
+| ---------- | ------ | --------------- |
+| `/health`  | GET    | Health check    |
+| `/tasks`   | GET    | Available tasks |
+| `/predict` | POST   | Make prediction |
 
 ---
 
-## Troubleshooting
+## Contributing
 
-### Port Already in Use
-
-```bash
-./stop-backend.sh   # For port 8000
-./stop-frontend.sh  # For port 3000
-```
-
-### Module Not Found
-
-```bash
-cd backend
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-### Frontend Won't Compile
-
-```bash
-cd frontend
-rm -rf node_modules package-lock.json
-npm install
-```
-
-For detailed troubleshooting, see [SETUP.md](SETUP.md).
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
@@ -220,6 +192,14 @@ MIT License
 
 ## Acknowledgments
 
-- BanglaBERT team at BUET for the pre-trained model
-- HuggingFace for the Transformers library
+- BanglaBERT team at BUET
+- HuggingFace Transformers
 - FastAPI and React communities
+
+---
+
+## Links
+
+- **GitHub:** https://github.com/jihad-islam/BanglaNLP-Fewshot
+- **Models:** https://huggingface.co/Jihad07/bangla-nlp-models
+- **Live Demo:** [Coming Soon]
