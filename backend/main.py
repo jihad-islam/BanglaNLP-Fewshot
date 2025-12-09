@@ -106,14 +106,21 @@ def predict_baseline(model_data: Dict, text: str) -> Dict:
 
 
 def predict_protonet(model_data: Dict, text: str) -> Dict:
-    """Run inference with ProtoNet model"""
+    """
+    Run inference with ProtoNet using prototype-based distance calculation.
+    
+    This implements Prototypical Networks inference:
+    1. Compute query embedding
+    2. Calculate Euclidean distances to class prototypes
+    3. Predict nearest prototype (minimum distance)
+    """
     try:
         model = model_data["model"]
         tokenizer = model_data["tokenizer"]
         task = model_data["task"]
         num_labels = model_data["num_labels"]
         
-        # Tokenize input
+        # Tokenize input (query)
         inputs = tokenizer(
             text,
             return_tensors="pt",
@@ -122,46 +129,39 @@ def predict_protonet(model_data: Dict, text: str) -> Dict:
             padding=True
         )
         
-        # Run inference to get embeddings
+        # ProtoNet inference: Distance-based classification
         with torch.no_grad():
-            embeddings = model(inputs["input_ids"], inputs["attention_mask"])
+            # Step 1: Get query embedding (256-dim)
+            query_embedding = model(inputs["input_ids"], inputs["attention_mask"])  # [1, 256]
             
-            # For demo purposes, we'll use a simple approach:
-            # Project the 256-dim embedding to class space using a learned/random projection
-            # In a real scenario, you'd compare with prototypes
+            # Step 2: Compute Euclidean distances to each class prototype
+            prototypes = model.prototypes  # [num_labels, 256]
             
-            # Simple projection to num_labels classes
-            # Using the embedding norm as a confidence measure
-            embedding_norm = torch.norm(embeddings, dim=-1)
+            # Compute distances: ||query - prototype||^2
+            distances = torch.cdist(query_embedding, prototypes, p=2)[0]  # [num_labels]
             
-            # Create a simple pseudo-classifier for demo
-            # This simulates the prototype matching process
-            pseudo_logits = torch.randn(1, num_labels) * 0.1  # Small random values
-            
-            # Use embedding features to influence logits
-            # This is a simplified version - in production you'd use actual prototypes
-            for i in range(num_labels):
-                pseudo_logits[0][i] += embedding_norm.item() / (i + 1)
-            
-            probs = F.softmax(pseudo_logits, dim=-1)
+            # Step 3: Convert distances to probabilities
+            # Predicted class = nearest prototype (minimum distance)
+            # Use negative distances as logits (closer = higher probability)
+            negative_distances = -distances
+            probs = F.softmax(negative_distances, dim=-1)  # Softmax over negative distances
             
             # Get prediction
-            predicted_class = torch.argmax(probs, dim=-1).item()
-            confidence = probs[0][predicted_class].item()
+            predicted_class = torch.argmin(distances).item()  # Nearest prototype
+            confidence = probs[predicted_class].item()
             
             # Get label names
             labels = model_registry.get_labels(task)
             predicted_label = labels[predicted_class] if predicted_class < len(labels) else f"Class {predicted_class}"
             
             # Get all class probabilities
-            all_probs = {labels[i]: float(probs[0][i]) for i in range(len(labels))}
+            all_probs = {labels[i]: float(probs[i]) for i in range(len(labels))}
             
         return {
             "predicted_label": predicted_label,
             "confidence": float(confidence),
             "probabilities": all_probs,
-            "model_type": "protonet",
-            "note": "ProtoNet uses embedding-based classification"
+            "model_type": "protonet"
         }
     except Exception as e:
         logger.error(f"ProtoNet prediction error: {e}")

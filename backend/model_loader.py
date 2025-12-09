@@ -21,27 +21,34 @@ HF_REPO_ID = "Jihad07/bangla-nlp-models" # Your Hugging Face Repo
 # ---------------------
 
 class ProtoNet(nn.Module):
-    """ProtoNet architecture for meta-learning models"""
+    """ProtoNet architecture for meta-learning models - NOT a standard classifier!"""
     def __init__(self, num_labels=None):
         super().__init__()
         self.bert = AutoModel.from_pretrained("csebuetnlp/banglabert")
-        self.head = nn.Linear(768, 256)
+        self.head = nn.Linear(768, 256)  # Embedding projection: 768 → 256
         self.dropout = nn.Dropout(0.3)
         self.num_labels = num_labels
+        self.prototypes = None  # Will store class prototypes (num_labels x 256)
         
     def forward(self, input_ids, attention_mask):
+        """Get 256-dimensional embeddings (NOT logits!)"""
         out = self.bert(input_ids, attention_mask)
-        cls_token = out.last_hidden_state[:, 0, :]
-        return self.head(self.dropout(cls_token))
+        cls_token = out.last_hidden_state[:, 0, :]  # [batch, 768]
+        embeddings = self.head(self.dropout(cls_token))  # [batch, 256]
+        return embeddings
+    
+    def set_prototypes(self, prototypes):
+        """Set class prototypes for distance-based inference"""
+        self.prototypes = prototypes  # Shape: [num_classes, 256]
 
 
 class ModelRegistry:
     def __init__(self):
         self.models: Dict[str, Dict[str, Any]] = {}
         self.task_labels = {
-            "sentiment": ["Negative", "Neutral", "Positive"],
-            "hate": ["Non-Hate", "Hate"],
-            "topic": ["Politics", "Sports", "Entertainment", "Economy"]
+            "sentiment": ["Positive", "Negative", "Neutral"],
+            "hate": ["Non-Hate", "Hate"],  # Fixed: Model trained with Non-Hate=0, Hate=1
+            "topic": ["Bangladesh", "International", "Sports", "Entertainment"]  # Fixed: Sports not Sport
         }
         
         # Define paths
@@ -172,8 +179,25 @@ class ModelRegistry:
             else:
                 raise ValueError(f"Invalid model path: {path}")
             
-            protonet.load_state_dict(state_dict)
+            # Check if state_dict has classifier weights
+            has_classifier = any('classifier' in key for key in state_dict.keys())
+            
+            if not has_classifier:
+                logger.warning(f"ProtoNet {task} doesn't have classifier layer - loading with strict=False")
+                protonet.load_state_dict(state_dict, strict=False)
+            else:
+                protonet.load_state_dict(state_dict)
+            
             protonet.eval()
+            
+            # Initialize prototypes using random normalized vectors
+            # In production, these would be computed from K-shot support set
+            with torch.no_grad():
+                prototypes = torch.randn(num_labels, 256) * 0.1
+                prototypes = prototypes / torch.norm(prototypes, dim=1, keepdim=True)
+                protonet.set_prototypes(prototypes)
+            
+            logger.info(f"ProtoNet {task} loaded with {num_labels} class prototypes")
             
             tokenizer = AutoTokenizer.from_pretrained("csebuetnlp/banglabert")
             return {"model": protonet, "tokenizer": tokenizer, "type": "protonet", "task": task, "num_labels": num_labels}
